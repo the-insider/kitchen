@@ -9,32 +9,38 @@ namespace :docker do
     sh "docker-compose down"
   end
 
+  desc "Install gems (bundle install)"
+  task :bundle do
+    Rake::Task["docker:up"].invoke
+    sh "docker-compose run api bundle install"
+  end
+
   desc "Start Rails server"
-  task :server do
+  task :server => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run --service-ports api bin/rails server -b 0.0.0.0"
   end
 
   desc "Open Rails console"
-  task :console do
+  task :console => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bin/rails console"
   end
 
   desc "Run database migrations"
-  task :migrate do
+  task :migrate => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bin/rails db:migrate"
   end
 
   desc "Create database"
-  task :"db:create" do
+  task :"db:create" => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bin/rails db:create"
   end
 
   desc "Drop database"
-  task :"db:drop" do
+  task :"db:drop" => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bin/rails db:drop"
   end
@@ -43,19 +49,19 @@ namespace :docker do
   task :"db:reset" => [:"db:drop", :"db:create", :migrate]
 
   desc "Run database seeds"
-  task :"db:seed" do
+  task :"db:seed" => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bin/rails db:seed"
   end
 
   desc "Run RSpec tests"
-  task :test do
+  task :test => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bundle exec rspec"
   end
 
   desc "Run any Rails command (usage: rake docker:exec[command])"
-  task :exec, [:command] do |t, args|
+  task :exec, [:command] => :bundle do |t, args|
     Rake::Task["docker:up"].invoke
     if args[:command]
       sh "docker-compose run api bin/rails #{args[:command]}"
