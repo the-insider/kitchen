@@ -48,10 +48,10 @@ namespace :docker do
     sh "docker-compose run api bin/rails db:seed"
   end
 
-  desc "Run tests"
+  desc "Run RSpec tests"
   task :test do
     Rake::Task["docker:up"].invoke
-    sh "docker-compose run api bin/rails test"
+    sh "docker-compose run api bundle exec rspec"
   end
 
   desc "Run any Rails command (usage: rake docker:exec[command])"
