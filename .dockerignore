@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Logs
+log/*
+tmp/*
+*.log
+
+# Environment
+.env
+.env.local
+
+# Database
+*.sqlite3
+*.sqlite3-journal
+
+# Node modules (if any)
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Coverage
+coverage/
+
