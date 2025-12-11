@@ -1,6 +1,10 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
+  namespace :api do
+    resources :restaurants do
+      resources :menus
+    end
+  end
 
-  # Defines the root path route ("/")
-  # root "articles#index"
+  # Prometheus metrics endpoint
+  get '/metrics', to: 'metrics#index'
 end

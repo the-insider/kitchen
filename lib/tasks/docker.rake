@@ -55,9 +55,15 @@ namespace :docker do
   end
 
   desc "Run RSpec tests"
-  task :test => :bundle do
+  task :spec => :bundle do
     Rake::Task["docker:up"].invoke
     sh "docker-compose run api bundle exec rspec"
+  end
+
+  desc "Run RuboCop linter"
+  task :lint => :bundle do
+    Rake::Task["docker:up"].invoke
+    sh "docker-compose run api bundle exec rubocop"
   end
 
   desc "Run any Rails command (usage: rake docker:exec[command])"

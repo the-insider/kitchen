@@ -36,6 +36,9 @@ gem "bootsnap", require: false
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin AJAX possible
 # gem "rack-cors"
 
+# Prometheus metrics
+gem "prometheus-client", "~> 4.0"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri mingw x64_mingw ]
@@ -46,6 +49,11 @@ group :development, :test do
   gem "faker", "~> 3.0"
   gem "shoulda-matchers", "~> 6.0"
   gem "simplecov", "~> 0.22", require: false
+
+  # Linting
+  gem "rubocop", "~> 1.64", require: false
+  gem "rubocop-rails", "~> 2.24", require: false
+  gem "rubocop-rspec", "~> 2.26", require: false
 end
 
 group :development do

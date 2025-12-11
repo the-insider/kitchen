@@ -153,6 +153,8 @@ GEM
     pp (0.6.3)
       prettyprint
     prettyprint (0.2.0)
+    prometheus-client (4.2.5)
+      base64
     psych (5.2.6)
       date
       stringio
@@ -254,6 +256,7 @@ DEPENDENCIES
   factory_bot_rails (~> 6.2)
   faker (~> 3.0)
   pg (~> 1.5)
+  prometheus-client (~> 4.0)
   puma (~> 5.0)
   rails (~> 7.0.8, >= 7.0.8.1)
   rspec-rails (~> 6.0)
