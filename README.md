@@ -107,7 +107,160 @@ The application uses **PostgreSQL with UUID primary keys**. The UUID extension (
 rake docker:test
 ```
 
-## Services (job queues, cache servers, search engines, etc.)
+## Linting
+```bash
+rake docker:lint        # Run RuboCop linter
+```
 
-## Deployment instructions
+## CI/CD Pipeline
 
+This project uses GitHub Actions for continuous integration and deployment.
+
+### Workflows
+
+#### 1. CI Workflow (`.github/workflows/ci.yml`)
+Runs on:
+- Push to `master`/`main` branch
+- All pull requests
+
+Jobs:
+- **Lint**: Runs RuboCop to check code style
+- **Test**: Runs RSpec test suite with PostgreSQL
+
+#### 2. CD Workflow (`.github/workflows/cd.yml`)
+Runs on:
+- Push to `master`/`main` branch (deploys to QA)
+- Tag creation (tags starting with `v*` - full production deployment)
+
+### Deployment Process
+
+#### QA Deployment (Automatic)
+When code is pushed to `master`/`main`:
+1. CI runs (lint + tests)
+2. If CI passes → Deploy to QA environment
+3. Integration tests run against QA
+
+**No approval required** for QA deployments.
+
+#### Production Deployment (Tag-based with Approvals)
+To deploy to production:
+
+1. **Create a release tag:**
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **Deployment pipeline:**
+   - CI runs (lint + tests)
+   - Deploy to QA
+   - Integration tests run
+   - **Run migrations** (requires approval in `production` environment)
+   - **Deploy canary** (requires approval in `production-canary` environment)
+   - **Full production deployment** (requires approval in `production` environment)
+
+### Required GitHub Configuration
+
+#### Secrets
+Configure these in **Settings → Secrets and variables → Actions**:
+
+- `REGISTRY_URL` - Container registry URL (e.g., `registry.example.com`)
+- `REGISTRY_USERNAME` - Registry username
+- `REGISTRY_PASSWORD` - Registry password
+
+#### Environments
+Create these environments in **Settings → Environments**:
+
+1. **`qa`** - QA environment
+   - No approval required
+   - Used for QA deployments
+
+2. **`production`** - Production environment
+   - **Required reviewers**: Add team members who can approve deployments
+   - Used for migrations and full production deployments
+
+3. **`production-canary`** - Canary deployment environment
+   - **Required reviewers**: Add team members who can approve canary deployments
+   - Used for canary releases (10% traffic)
+
+### Deployment Workflow Details
+
+#### QA Deployment Flow
+```
+Push to master/main
+  ↓
+CI (lint + test)
+  ↓
+Deploy to QA
+  ↓
+Integration Tests
+```
+
+#### Production Deployment Flow
+```
+Create tag (v*)
+  ↓
+CI (lint + test)
+  ↓
+Deploy to QA
+  ↓
+Integration Tests
+  ↓
+[APPROVAL REQUIRED] Run Migrations
+  ↓
+[APPROVAL REQUIRED] Deploy Canary (10% traffic)
+  ↓
+[APPROVAL REQUIRED] Full Production Deployment
+```
+
+### Manual Deployment Steps
+
+If you need to deploy manually or troubleshoot:
+
+1. **Build Docker image:**
+   ```bash
+   docker build -f Dockerfile -t kitchen:latest .
+   ```
+
+2. **Tag and push to registry:**
+   ```bash
+   docker tag kitchen:latest $REGISTRY_URL/kitchen:$TAG
+   docker push $REGISTRY_URL/kitchen:$TAG
+   ```
+
+3. **Run migrations:**
+   ```bash
+   # Update with your deployment method
+   kubectl exec -it deployment/kitchen -- bin/rails db:migrate
+   ```
+
+4. **Deploy application:**
+   ```bash
+   # Update with your deployment method (kubectl, helm, etc.)
+   ```
+
+### Monitoring Deployments
+
+- **GitHub Actions**: View deployment status in the Actions tab
+- **Prometheus Metrics**: Available at `/metrics` endpoint
+- **JSON Logs**: All API requests are logged in JSON format
+
+### Rollback Procedure
+
+If a deployment fails:
+
+1. **Immediate rollback:**
+   ```bash
+   # Revert to previous tag/image
+   git tag v0.9.0  # Previous version
+   git push origin v0.9.0
+   ```
+
+2. **Database rollback:**
+   ```bash
+   # Rollback last migration
+   bin/rails db:rollback
+   ```
+
+## Service Dependencies
+[TBD]
