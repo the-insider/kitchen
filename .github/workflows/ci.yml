@@ -74,6 +74,34 @@ jobs:
         run: |
           bin/rails db:create
           bin/rails db:schema:load
+          bin/rails db:migrate
+
+      - name: Check for pending migrations
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_USERNAME: postgres
+          DATABASE_PASSWORD: postgres
+          RAILS_ENV: test
+        run: |
+          bin/rails db:schema:dump
+
+          # If schema.rb changed, it means there were migrations not committed
+          if ! git diff --exit-code --quiet db/schema.rb; then
+            echo "❌ ERROR: Pending migrations detected!"
+            echo ""
+            echo "The schema.rb file is out of sync with the migrations."
+            echo "This means there are migrations in the codebase that haven't been committed."
+            echo ""
+            echo "To fix this:"
+            echo "1. Run: bin/rails db:migrate (in development environment)"
+            echo "2. Commit the updated db/schema.rb file"
+            echo ""
+            echo "Schema differences:"
+            git diff db/schema.rb
+            exit 1
+          fi
+
+          echo "✅ Schema is up to date - no pending migrations"
 
       - name: Run tests
         env:
