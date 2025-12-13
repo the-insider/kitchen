@@ -1,6 +1,11 @@
-plugins:
-  - rubocop-rails
+require:
   - rubocop-rspec
+  - rubocop-rspec_rails
+
+plugins:
+  - rubocop-capybara
+  - rubocop-rails
+  - rubocop-factory_bot
 
 AllCops:
   NewCops: enable
@@ -14,10 +19,9 @@ AllCops:
     - 'tmp/**'
     - 'log/**'
     - 'coverage/**'
-    - 'config/boot.rb'
-    - 'config/environment.rb'
-    - 'config/application.rb'
-    - 'tasks/docker.rake'
+  - 'config/boot.rb'
+  - 'config/environment.rb'
+  - 'config/application.rb'
 
 Style/Documentation:
   Enabled: false
@@ -30,6 +34,7 @@ Metrics/BlockLength:
     - 'spec/**/*'
     - 'config/**/*'
     - 'db/**/*'
+    - 'lib/tasks/**/*'
 
 Metrics/ClassLength:
   Max: 150
