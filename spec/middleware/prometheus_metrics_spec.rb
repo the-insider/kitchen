@@ -1,8 +1,8 @@
 require 'rails_helper'
 
 RSpec.describe PrometheusMetrics do
-  let(:app) { ->(env) { [200, {}, ['OK']] } }
-  let(:middleware) { PrometheusMetrics.new(app) }
+  let(:app) { ->(_env) { [200, {}, ['OK']] } }
+  let(:middleware) { described_class.new(app) }
   let(:env) { Rack::MockRequest.env_for('/api/restaurants', method: 'GET') }
 
   before do
@@ -13,7 +13,7 @@ RSpec.describe PrometheusMetrics do
   end
 
   it 'calls the app' do
-    status, headers, body = middleware.call(env)
+    status, _, body = middleware.call(env)
 
     expect(status).to eq(200)
     expect(body).to eq(['OK'])
@@ -49,7 +49,7 @@ RSpec.describe PrometheusMetrics do
     values = counter.values
 
     # Check that path was normalized
-    path_labels = values.keys.map { |labels| labels[:path] }
+    path_labels = values.keys.pluck(:path)
     expect(path_labels).to include('/api/restaurants/:id')
   end
 
@@ -61,7 +61,7 @@ RSpec.describe PrometheusMetrics do
     values = counter.values
 
     # Check that path was normalized
-    path_labels = values.keys.map { |labels| labels[:path] }
+    path_labels = values.keys.pluck(:path)
     expect(path_labels).to include('/api/restaurants/:id/menus/:id')
   end
 
@@ -73,26 +73,24 @@ RSpec.describe PrometheusMetrics do
     values = counter.values
 
     # Check that path was normalized
-    path_labels = values.keys.map { |labels| labels[:path] }
+    path_labels = values.keys.pluck(:path)
     expect(path_labels).to include('/api/restaurants/:id/menus')
   end
 
   it 'records correct labels for metrics' do
-    # Clear metrics to ensure clean state
-    counter = Prometheus::Client.registry.get(:http_requests_total)
-    counter.values.clear if counter.respond_to?(:values) && counter.values.respond_to?(:clear)
-
-    env_post = Rack::MockRequest.env_for('/api/restaurants', method: 'POST')
+    # Use a unique path to avoid conflicts with other tests
+    unique_path = '/api/test-unique-path'
+    env_post = Rack::MockRequest.env_for(unique_path, method: 'POST')
     middleware.call(env_post)
 
+    counter = Prometheus::Client.registry.get(:http_requests_total)
     values = counter.values
 
-    # Find a POST request metric
-    post_metric = values.find { |labels, _value| labels[:method] == 'POST' && labels[:path] == '/api/restaurants' }
+    # Find the POST request metric for this specific unique path
+    post_metric = values.find { |labels, _value| labels[:method] == 'POST' && labels[:path] == unique_path }
     expect(post_metric).to be_present
     expect(post_metric[0][:method]).to eq('POST')
     expect(post_metric[0][:status]).to eq('200')
-    expect(post_metric[0][:path]).to eq('/api/restaurants')
+    expect(post_metric[0][:path]).to eq(unique_path)
   end
 end
-

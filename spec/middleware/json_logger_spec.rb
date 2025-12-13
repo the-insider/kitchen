@@ -1,8 +1,8 @@
 require 'rails_helper'
 
 RSpec.describe JsonLogger do
-  let(:app) { ->(env) { [200, {}, ['OK']] } }
-  let(:middleware) { JsonLogger.new(app) }
+  let(:app) { ->(_env) { [200, {}, ['OK']] } }
+  let(:middleware) { described_class.new(app) }
   let(:env) { Rack::MockRequest.env_for('/api/restaurants', method: 'GET') }
 
   before do
@@ -10,7 +10,7 @@ RSpec.describe JsonLogger do
   end
 
   it 'calls the app' do
-    status, headers, body = middleware.call(env)
+    status, _, body = middleware.call(env)
 
     expect(status).to eq(200)
     expect(body).to eq(['OK'])
@@ -47,4 +47,3 @@ RSpec.describe JsonLogger do
     end
   end
 end
-

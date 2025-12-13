@@ -42,4 +42,3 @@ RSpec.describe 'Metrics API' do
     end
   end
 end
-
