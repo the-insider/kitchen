@@ -22,6 +22,7 @@ AllCops:
     - 'config/boot.rb'
     - 'config/environment.rb'
     - 'config/application.rb'
+    - 'vendor/**/*'
 
 Style/Documentation:
   Enabled: false
