@@ -25,11 +25,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup flyctl
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Bundle secrets
         run: |
-          apt-get install -y jq
+          sudo apt-get install -y jq
           echo "${{ toJSON(secrets) }}" | jq -r 'to_entries[] | "\\(.key)=\\(.value)"' >> .env
           fly secrets import -a env.FLY_APP_NAME << .env
           fly secrets import -a env.FLY_APP_NAME << $GITHUB_ENV
@@ -37,7 +37,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy
-      - run: flyctl deploy --local-only -a
+        run: flyctl deploy --local-only -a
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
