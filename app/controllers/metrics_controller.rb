@@ -29,7 +29,7 @@ class MetricsController < ApplicationController
 
   def format_counter(metric)
     lines = ["# HELP #{metric.name} #{metric.docstring}", "# TYPE #{metric.name} counter"]
-    metric.each_value do |labels, value|
+    metric.values.each do |labels, value|
       label_string = format_labels(labels)
       lines << "#{metric.name}#{label_string} #{value}"
     end
@@ -38,7 +38,7 @@ class MetricsController < ApplicationController
 
   def format_histogram(metric)
     lines = ["# HELP #{metric.name} #{metric.docstring}", "# TYPE #{metric.name} histogram"]
-    metric.each_value do |labels, buckets|
+    metric.values.each do |labels, buckets|
       lines.concat(format_histogram_buckets(metric.name, labels, buckets))
       lines.concat(format_histogram_summary(metric, metric.name, labels, buckets))
     end
@@ -62,7 +62,7 @@ class MetricsController < ApplicationController
 
   def format_gauge(metric)
     lines = ["# HELP #{metric.name} #{metric.docstring}", "# TYPE #{metric.name} gauge"]
-    metric.each_value do |labels, value|
+    metric.values.each do |labels, value|
       label_string = format_labels(labels)
       lines << "#{metric.name}#{label_string} #{value}"
     end
