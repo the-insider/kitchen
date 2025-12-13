@@ -1,4 +1,4 @@
-require:
+plugins:
   - rubocop-rails
   - rubocop-rspec
 
@@ -17,6 +17,7 @@ AllCops:
     - 'config/boot.rb'
     - 'config/environment.rb'
     - 'config/application.rb'
+    - 'tasks/docker.rake'
 
 Style/Documentation:
   Enabled: false
