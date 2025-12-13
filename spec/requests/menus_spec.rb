@@ -1,17 +1,17 @@
 require 'rails_helper'
 
-RSpec.describe 'Menus API', type: :request do
+RSpec.describe 'Menus API' do
   let(:restaurant) { create(:restaurant) }
 
   describe 'GET /api/restaurants/:restaurant_id/menus' do
     it 'returns all menus for a restaurant' do
-      menu1 = create(:menu, restaurant: restaurant, name: 'Menu 1', price: 10.99)
-      menu2 = create(:menu, restaurant: restaurant, name: 'Menu 2', price: 15.99)
+      create(:menu, restaurant: restaurant, name: 'Menu 1', price: 10.99)
+      create(:menu, restaurant: restaurant, name: 'Menu 2', price: 15.99)
 
       get "/api/restaurants/#{restaurant.id}/menus"
 
       expect(response).to have_http_status(:success)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json.length).to eq(2)
       expect(json.first['name']).to eq('Menu 1')
       expect(json.first['price']).to eq('10.99')
@@ -21,7 +21,7 @@ RSpec.describe 'Menus API', type: :request do
       get "/api/restaurants/#{restaurant.id}/menus"
 
       expect(response).to have_http_status(:success)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json).to eq([])
     end
   end
@@ -33,7 +33,7 @@ RSpec.describe 'Menus API', type: :request do
       get "/api/restaurants/#{restaurant.id}/menus/#{menu.id}"
 
       expect(response).to have_http_status(:success)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['id']).to eq(menu.id)
       expect(json['name']).to eq('Test Menu')
       expect(json['price']).to eq('12.99')
@@ -58,12 +58,12 @@ RSpec.describe 'Menus API', type: :request do
         }
       }
 
-      expect {
+      expect do
         post "/api/restaurants/#{restaurant.id}/menus", params: menu_params
-      }.to change(Menu, :count).by(1)
+      end.to change(Menu, :count).by(1)
 
       expect(response).to have_http_status(:created)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['name']).to eq('New Menu')
       expect(json['price']).to eq('20.99')
       expect(json['dietary_type']).to eq('veg')
@@ -80,7 +80,7 @@ RSpec.describe 'Menus API', type: :request do
       post "/api/restaurants/#{restaurant.id}/menus", params: menu_params
 
       expect(response).to have_http_status(:unprocessable_entity)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['errors']).to be_present
     end
   end
@@ -99,7 +99,7 @@ RSpec.describe 'Menus API', type: :request do
       patch "/api/restaurants/#{restaurant.id}/menus/#{menu.id}", params: menu_params
 
       expect(response).to have_http_status(:success)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json['name']).to eq('Updated Name')
       expect(json['price']).to eq('25.99')
       menu.reload
@@ -111,12 +111,11 @@ RSpec.describe 'Menus API', type: :request do
     it 'deletes a menu' do
       menu = create(:menu, restaurant: restaurant)
 
-      expect {
+      expect do
         delete "/api/restaurants/#{restaurant.id}/menus/#{menu.id}"
-      }.to change(Menu, :count).by(-1)
+      end.to change(Menu, :count).by(-1)
 
       expect(response).to have_http_status(:no_content)
     end
   end
 end
-

@@ -19,9 +19,9 @@ AllCops:
     - 'tmp/**'
     - 'log/**'
     - 'coverage/**'
-  - 'config/boot.rb'
-  - 'config/environment.rb'
-  - 'config/application.rb'
+    - 'config/boot.rb'
+    - 'config/environment.rb'
+    - 'config/application.rb'
 
 Style/Documentation:
   Enabled: false

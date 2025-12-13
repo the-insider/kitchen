@@ -1,7 +1,7 @@
 # Configure JSON logging for structured logs
 if Rails.env.development? || Rails.env.production?
   class Logger
-    def format_message(severity, timestamp, progname, msg)
+    def format_message(severity, timestamp, _progname, msg)
       if msg.is_a?(String) && msg.start_with?('{')
         # Already JSON formatted, return as is
         "#{msg}\n"
@@ -18,4 +18,3 @@ if Rails.env.development? || Rails.env.production?
     end
   end
 end
-

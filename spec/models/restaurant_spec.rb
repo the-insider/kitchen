@@ -1,19 +1,19 @@
 require 'rails_helper'
 
-RSpec.describe Restaurant, type: :model do
+RSpec.describe Restaurant do
   describe 'validations' do
-    it { should validate_presence_of(:name) }
-    it { should validate_presence_of(:location) }
+    it { is_expected.to validate_presence_of(:name) }
+    it { is_expected.to validate_presence_of(:location) }
   end
 
   describe 'attributes' do
     it 'has a name attribute' do
-      restaurant = Restaurant.new(name: 'Test Restaurant')
+      restaurant = described_class.new(name: 'Test Restaurant')
       expect(restaurant.name).to eq('Test Restaurant')
     end
 
     it 'has a location attribute' do
-      restaurant = Restaurant.new(location: 'New York')
+      restaurant = described_class.new(location: 'New York')
       expect(restaurant.location).to eq('New York')
     end
   end
@@ -33,4 +33,3 @@ RSpec.describe Restaurant, type: :model do
     end
   end
 end
-

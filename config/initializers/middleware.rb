@@ -4,4 +4,3 @@ require Rails.root.join('app/middleware/prometheus_metrics')
 
 Rails.application.config.middleware.use JsonLogger
 Rails.application.config.middleware.use PrometheusMetrics
-

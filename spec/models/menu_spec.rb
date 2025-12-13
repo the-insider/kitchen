@@ -1,40 +1,40 @@
 require 'rails_helper'
 
-RSpec.describe Menu, type: :model do
+RSpec.describe Menu do
   describe 'associations' do
-    it { should belong_to(:restaurant) }
+    it { is_expected.to belong_to(:restaurant) }
   end
 
   describe 'validations' do
-    it { should validate_presence_of(:name) }
-    it { should validate_presence_of(:description) }
-    it { should validate_presence_of(:price) }
-    it { should validate_numericality_of(:price).is_greater_than(0) }
+    it { is_expected.to validate_presence_of(:name) }
+    it { is_expected.to validate_presence_of(:description) }
+    it { is_expected.to validate_presence_of(:price) }
+    it { is_expected.to validate_numericality_of(:price).is_greater_than(0) }
   end
 
   describe 'attributes' do
     it 'has a name attribute' do
-      menu = Menu.new(name: 'Pizza')
+      menu = described_class.new(name: 'Pizza')
       expect(menu.name).to eq('Pizza')
     end
 
     it 'has a description attribute' do
-      menu = Menu.new(description: 'Delicious pizza')
+      menu = described_class.new(description: 'Delicious pizza')
       expect(menu.description).to eq('Delicious pizza')
     end
 
     it 'has a price attribute' do
-      menu = Menu.new(price: 12.99)
+      menu = described_class.new(price: 12.99)
       expect(menu.price).to eq(12.99)
     end
 
     it 'has a category attribute' do
-      menu = Menu.new(category: 'Main Course')
+      menu = described_class.new(category: 'Main Course')
       expect(menu.category).to eq('Main Course')
     end
 
     it 'has a dietary_type attribute' do
-      menu = Menu.new(dietary_type: 'veg')
+      menu = described_class.new(dietary_type: 'veg')
       expect(menu.dietary_type).to eq('veg')
     end
   end
@@ -79,4 +79,3 @@ RSpec.describe Menu, type: :model do
     end
   end
 end
-

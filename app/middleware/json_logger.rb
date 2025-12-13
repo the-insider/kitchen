@@ -5,11 +5,11 @@ class JsonLogger
 
   def call(env)
     request = ActionDispatch::Request.new(env)
-    start_time = Time.now
+    start_time = Time.zone.now
 
     status, headers, response = @app.call(env)
 
-    duration = ((Time.now - start_time) * 1000).round(2) # in milliseconds
+    duration = ((Time.zone.now - start_time) * 1000).round(2) # in milliseconds
 
     log_request(request, status, duration)
 
@@ -32,4 +32,3 @@ class JsonLogger
     Rails.logger.info(log_data.to_json)
   end
 end
-

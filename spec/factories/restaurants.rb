@@ -4,4 +4,3 @@ FactoryBot.define do
     location { Faker::Address.city }
   end
 end
-
