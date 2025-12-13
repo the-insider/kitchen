@@ -104,6 +104,25 @@ RSpec.describe 'Restaurants API' do
       patch '/api/restaurants/non-existent-id', params: { restaurant: { name: 'Test' } }
 
       expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Restaurant not found')
+    end
+
+    it 'returns errors when validation fails' do
+      restaurant = create(:restaurant, name: 'Test Restaurant', location: 'Test City')
+
+      restaurant_params = {
+        restaurant: {
+          name: '',
+          location: ''
+        }
+      }
+
+      patch "/api/restaurants/#{restaurant.id}", params: restaurant_params
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = response.parsed_body
+      expect(json['errors']).to be_present
     end
   end
 

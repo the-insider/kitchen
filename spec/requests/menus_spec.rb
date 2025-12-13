@@ -24,6 +24,14 @@ RSpec.describe 'Menus API' do
       json = response.parsed_body
       expect(json).to eq([])
     end
+
+    it 'returns 404 when restaurant not found' do
+      get '/api/restaurants/non-existent-id/menus'
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Restaurant not found')
+    end
   end
 
   describe 'GET /api/restaurants/:restaurant_id/menus/:id' do
@@ -43,6 +51,14 @@ RSpec.describe 'Menus API' do
       get "/api/restaurants/#{restaurant.id}/menus/non-existent-id"
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns 404 when restaurant not found' do
+      get '/api/restaurants/non-existent-id/menus/some-menu-id'
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Restaurant not found')
     end
   end
 
@@ -83,6 +99,22 @@ RSpec.describe 'Menus API' do
       json = response.parsed_body
       expect(json['errors']).to be_present
     end
+
+    it 'returns 404 when restaurant not found' do
+      menu_params = {
+        menu: {
+          name: 'New Menu',
+          description: 'Delicious food',
+          price: 20.99
+        }
+      }
+
+      post '/api/restaurants/non-existent-id/menus', params: menu_params
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Restaurant not found')
+    end
   end
 
   describe 'PATCH /api/restaurants/:restaurant_id/menus/:id' do
@@ -105,6 +137,39 @@ RSpec.describe 'Menus API' do
       menu.reload
       expect(menu.name).to eq('Updated Name')
     end
+
+    it 'returns 404 when menu not found' do
+      patch "/api/restaurants/#{restaurant.id}/menus/non-existent-id", params: { menu: { name: 'Test' } }
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Menu not found')
+    end
+
+    it 'returns 404 when restaurant not found' do
+      patch '/api/restaurants/non-existent-id/menus/some-menu-id', params: { menu: { name: 'Test' } }
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Restaurant not found')
+    end
+
+    it 'returns errors when validation fails' do
+      menu = create(:menu, restaurant: restaurant, name: 'Test Menu', price: 10.99)
+
+      menu_params = {
+        menu: {
+          name: '',
+          price: -1
+        }
+      }
+
+      patch "/api/restaurants/#{restaurant.id}/menus/#{menu.id}", params: menu_params
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = response.parsed_body
+      expect(json['errors']).to be_present
+    end
   end
 
   describe 'DELETE /api/restaurants/:restaurant_id/menus/:id' do
@@ -116,6 +181,22 @@ RSpec.describe 'Menus API' do
       end.to change(Menu, :count).by(-1)
 
       expect(response).to have_http_status(:no_content)
+    end
+
+    it 'returns 404 when menu not found' do
+      delete "/api/restaurants/#{restaurant.id}/menus/non-existent-id"
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Menu not found')
+    end
+
+    it 'returns 404 when restaurant not found' do
+      delete '/api/restaurants/non-existent-id/menus/some-menu-id'
+
+      expect(response).to have_http_status(:not_found)
+      json = response.parsed_body
+      expect(json['error']).to eq('Restaurant not found')
     end
   end
 end

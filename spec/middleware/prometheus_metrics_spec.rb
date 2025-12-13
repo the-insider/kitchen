@@ -78,17 +78,21 @@ RSpec.describe PrometheusMetrics do
   end
 
   it 'records correct labels for metrics' do
+    # Clear metrics to ensure clean state
+    counter = Prometheus::Client.registry.get(:http_requests_total)
+    counter.values.clear if counter.respond_to?(:values) && counter.values.respond_to?(:clear)
+
     env_post = Rack::MockRequest.env_for('/api/restaurants', method: 'POST')
     middleware.call(env_post)
 
-    counter = Prometheus::Client.registry.get(:http_requests_total)
     values = counter.values
 
     # Find a POST request metric
-    post_metric = values.find { |labels, _value| labels[:method] == 'POST' }
+    post_metric = values.find { |labels, _value| labels[:method] == 'POST' && labels[:path] == '/api/restaurants' }
     expect(post_metric).to be_present
     expect(post_metric[0][:method]).to eq('POST')
     expect(post_metric[0][:status]).to eq('200')
+    expect(post_metric[0][:path]).to eq('/api/restaurants')
   end
 end
 
