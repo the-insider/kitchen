@@ -22,6 +22,13 @@ test:
   password: <%= ENV.fetch("DATABASE_PASSWORD") { "postgres" } %>
   host: <%= ENV.fetch("DATABASE_HOST") { "localhost" } %>
 
+staging:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME") { "kitchen_test" } %>
+  username: <%= ENV.fetch("DATABASE_USERNAME") { "postgres" } %>
+  password: <%= ENV.fetch("DATABASE_PASSWORD") { "postgres" } %>
+  host: <%= ENV.fetch("DATABASE_HOST") { "localhost" } %>
+
 production:
   <<: *default
   database: <%= ENV.fetch("DATABASE_NAME") { "kitchen_production" } %>
