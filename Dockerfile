@@ -44,8 +44,5 @@ USER app
 # Expose port
 EXPOSE 3000
 
-# Precompile assets
-RUN RAILS_ENV=production bin/rails assets:precompile
-
 # Default command
 CMD ["bin/rails", "server", "-b", "0.0.0.0"]
