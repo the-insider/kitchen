@@ -7,7 +7,7 @@ default: &default
 
 development:
   <<: *default
-  database: kitchen_development
+  database: <%= ENV.fetch("DATABASE_NAME") { "kitchen_development" } %>
   username: <%= ENV.fetch("DATABASE_USERNAME") { "postgres" } %>
   password: <%= ENV.fetch("DATABASE_PASSWORD") { "postgres" } %>
   host: <%= ENV.fetch("DATABASE_HOST") { "localhost" } %>
@@ -17,14 +17,14 @@ development:
 # Do not set this db to the same as development or production.
 test:
   <<: *default
-  database: kitchen_test
+  database: <%= ENV.fetch("DATABASE_NAME") { "kitchen_test" } %>
   username: <%= ENV.fetch("DATABASE_USERNAME") { "postgres" } %>
   password: <%= ENV.fetch("DATABASE_PASSWORD") { "postgres" } %>
   host: <%= ENV.fetch("DATABASE_HOST") { "localhost" } %>
 
 production:
   <<: *default
-  database: kitchen_production
+  database: <%= ENV.fetch("DATABASE_NAME") { "kitchen_production" } %>
   username: <%= ENV["DATABASE_USERNAME"] %>
   password: <%= ENV["DATABASE_PASSWORD"] %>
   host: <%= ENV["DATABASE_HOST"] %>
