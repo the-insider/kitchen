@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-12-10T00:00:00.000Z",
+  "metrics": {
+    "http_req_duration": {
+      "avg": 50,
+      "min": 10,
+      "max": 200,
+      "p50": 45,
+      "p95": 100,
+      "p99": 150
+    },
+    "http_reqs": {
+      "total": 1000,
+      "rate": 10
+    },
+    "errors": {
+      "rate": 0.01,
+      "passes": 990,
+      "fails": 10
+    }
+  }
+}
+

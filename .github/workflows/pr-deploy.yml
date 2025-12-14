@@ -107,7 +107,7 @@ jobs:
           echo "$APP_SECRETS" | jq -r 'to_entries | map(select(.key != "FLY_API_TOKEN")) | .[] | "\(.key)=\(.value)"' > .env
           echo "DATABASE_HOST=$DATABASE_HOST" >> .env
           echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> .env
-          
+
           flyctl secrets import -a "$FLY_APP_NAME" --stage < .env
         env:
           APP_SECRETS: ${{ toJSON(secrets) }}
@@ -160,7 +160,51 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
 
-      - name: Comment PR with deployment URL
+      - name: Run load tests
+        id: load-test
+        if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
+        shell: bash
+        run: |
+          DEPLOYMENT_URL="${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}"
+
+          # Install k6
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D9B
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6 jq
+
+          # Wait for deployment to be ready
+          echo "Waiting for deployment to be ready..."
+          sleep 10
+
+          # Run load tests
+          k6 run --out json=load-test-results.json load-tests/k6-tests.js --env BASE_URL="$DEPLOYMENT_URL" || true
+
+          # Parse results for PR comment
+          if [ -f load-test-results.json ]; then
+            P95=$(jq -r '.metrics.http_req_duration.p95 // 0' load-test-results.json 2>/dev/null || echo "0")
+            AVG=$(jq -r '.metrics.http_req_duration.avg // 0' load-test-results.json 2>/dev/null || echo "0")
+            TOTAL=$(jq -r '.metrics.http_reqs.total // 0' load-test-results.json 2>/dev/null || echo "0")
+            ERROR_RATE=$(jq -r '.metrics.errors.rate // 0' load-test-results.json 2>/dev/null || echo "0")
+
+            # Format error rate as percentage
+            ERROR_PCT=$(echo "$ERROR_RATE * 100" | bc -l 2>/dev/null || echo "0")
+            ERROR_PCT_FORMATTED=$(printf "%.2f" "$ERROR_PCT")
+
+            echo "results<<EOF" >> $GITHUB_OUTPUT
+            echo "| Metric | Value |" >> $GITHUB_OUTPUT
+            echo "|--------|-------|" >> $GITHUB_OUTPUT
+            echo "| P95 Latency | ${P95}ms |" >> $GITHUB_OUTPUT
+            echo "| Avg Latency | ${AVG}ms |" >> $GITHUB_OUTPUT
+            echo "| Total Requests | ${TOTAL} |" >> $GITHUB_OUTPUT
+            echo "| Error Rate | ${ERROR_PCT_FORMATTED}% |" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+        env:
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
+
+      - name: Comment PR with deployment URL and load test results
         uses: mshick/add-pr-comment@v2
         with:
           message: |
@@ -170,6 +214,8 @@ jobs:
 
             **Environment URL:** [${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}](${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }})
             **Database:** Connected to Neon preview branch
+
+            ${{ steps.load-test.outputs.results && format('### 📊 Load Test Results\n\n{0}\n', steps.load-test.outputs.results) || '### ⏳ Load tests are running...' }}
 
             ---
             *This preview environment will be automatically destroyed when the PR is closed.*

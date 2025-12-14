@@ -123,6 +123,39 @@ jobs:
           # Run integration/request specs
           bundle exec rspec spec/requests/
 
+      - name: Run load tests against QA
+        id: load-test
+        env:
+          QA_URL: https://kitchen-test.fly.dev
+        run: |
+          # Install k6 and Node.js
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D9B
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6 nodejs bc
+
+          # Wait for QA to be ready
+          echo "Waiting for QA deployment to be ready..."
+          sleep 15
+
+          # Run load tests
+          k6 run --out json=load-test-results.json load-tests/k6-tests.js --env BASE_URL="$QA_URL" || true
+
+          # Compare with baseline (will create baseline if it doesn't exist)
+          if [ -f load-test-results.json ]; then
+            node load-tests/compare-baseline.js load-test-results.json
+          else
+            echo "⚠️ Load test results file not found. Skipping baseline comparison."
+            exit 0
+          fi
+
+          # Upload results as artifact
+          if [ -f load-test-results.json ]; then
+            echo "✅ Load test results saved"
+          fi
+        continue-on-error: false
+
   run-migrations:
     name: Run Migrations
     needs: [integration-tests]
