@@ -13,9 +13,26 @@ jobs:
     name: Run CI
     uses: ./.github/workflows/ci.yml
 
+  release-id:
+    name: Docker Image Tag
+    runs-on: ubuntu-latest
+    needs: [ci]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ vars.FLY_IO_REGISTRY }}/${{ vars.FLY_APP_NAME }}
+          tags: |
+            type=sha,suffix={{ date 'YYYYMMDDHHmmss' tz='Asia/Kolkata' }}
+            type=semver,pattern={{raw}},enable=${{ startsWith(github.ref, 'refs/tags/') }},suffix={{ date 'YYYYMMDDHHmmss' tz='Asia/Kolkata' }}
+
   deploy-qa:
     name: Deploy to QA
-    # needs: [ci]
+    needs: [release-id]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     environment: qa
@@ -39,11 +56,13 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy
+        shell: bash
         run: |
           # Build --env arguments from vars
-          VARS_ARGS=$(echo "$APP_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
-          flyctl deploy --local-only -a "$FLY_APP_NAME" $VARS_ARGS
-        shell: bash
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
+
+          # Deploy with image label from release-id job
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
@@ -124,7 +143,7 @@ jobs:
 
   deploy-canary:
     name: Deploy Canary
-    needs: [run-migrations]
+    needs: [run-migrations, release-id]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
@@ -137,39 +156,36 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Login to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.REGISTRY_URL }}/kitchen:${{ github.ref_name }}
-            ${{ secrets.REGISTRY_URL }}/kitchen:canary
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Deploy canary release
+      - name: Bundle secrets
         run: |
-          echo "Deploying canary release to production"
-          echo "Tag: ${{ github.ref_name }}"
-          echo "Image: ${{ secrets.REGISTRY_URL }}/kitchen:${{ github.ref_name }}"
-          # Add canary deployment logic here
-          # Example: Deploy 10% of traffic to new version
+          sudo apt-get install -y jq
+          echo "$APP_SECRETS" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > .env
+          flyctl secrets import -a "$FLY_APP_NAME" --stage < .env
+        shell: bash
+        env:
+          APP_SECRETS: ${{ toJSON(secrets) }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy canary
+        shell: bash
+        run: |
+          # Build --env arguments from vars
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
+
+          # Deploy with image label from release-id job
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+        env:
+          ALL_VARS: ${{ toJSON(vars) }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   deploy-production:
     name: Deploy to Production
-    needs: [deploy-canary]
+    needs: [deploy-canary, release-id]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
@@ -182,32 +198,30 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Login to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.REGISTRY_URL }}/kitchen:${{ github.ref_name }}
-            ${{ secrets.REGISTRY_URL }}/kitchen:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Bundle secrets
+        run: |
+          sudo apt-get install -y jq
+          echo "$APP_SECRETS" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > .env
+          flyctl secrets import -a "$FLY_APP_NAME" --stage < .env
+        shell: bash
+        env:
+          APP_SECRETS: ${{ toJSON(secrets) }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy to production
+        shell: bash
         run: |
-          echo "Deploying to production"
-          echo "Tag: ${{ github.ref_name }}"
-          echo "Image: ${{ secrets.REGISTRY_URL }}/kitchen:${{ github.ref_name }}"
-          # Add your production deployment commands here
+          # Build --env arguments from vars
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
+
+          # Deploy with image label from release-id job
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+        env:
+          ALL_VARS: ${{ toJSON(vars) }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
