@@ -94,7 +94,7 @@ jobs:
           SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries | map(select(.key != "FLY_API_TOKEN")) | .[] | "--secret \(.key)=\(.value | @sh)"' | xargs)
 
           # Launch preview app
-          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST="$DATABASE_HOST" --secret RAILS_MASTER_KEY="$RAILS_MASTER_KEY"
+          flyctl launch --name "$FLY_APP_NAME" --ha=false --local-only --no-redis --no-db --no-github-workflow --now --region "sin" --yes $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST="$DATABASE_HOST" --secret RAILS_MASTER_KEY="$RAILS_MASTER_KEY"
           DEPLOYMENT_URL="https://$FLY_APP_NAME.fly.dev"
           echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
         env:
