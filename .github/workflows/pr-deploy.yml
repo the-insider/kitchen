@@ -206,7 +206,10 @@ jobs:
             echo "  Total: ${TOTAL}"
             echo "  Error Rate: ${ERROR_PCT}%"
 
-            echo "results<<EOF" >> $GITHUB_OUTPUT
+            # Build load test results table
+            echo "load_test_results<<EOF" >> $GITHUB_OUTPUT
+            echo "### 📊 Load Test Results" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
             echo "| Metric | Value |" >> $GITHUB_OUTPUT
             echo "|--------|-------|" >> $GITHUB_OUTPUT
             echo "| P95 Latency | ${P95}ms |" >> $GITHUB_OUTPUT
@@ -216,7 +219,7 @@ jobs:
             echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "⚠️ Load test results file not found"
-            echo "results=Load tests failed or results not available" >> $GITHUB_OUTPUT
+            echo "load_test_results=### ⏳ Load tests are running or failed..." >> $GITHUB_OUTPUT
           fi
         env:
           FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
@@ -225,7 +228,6 @@ jobs:
         if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
         uses: mshick/add-pr-comment@v2
         with:
-          message-id: preview-deployment-${{ github.event.pull_request.number }}
           message: |
             ## 🚀 Preview Deployment
 
@@ -234,7 +236,7 @@ jobs:
             **Environment URL:** [${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}](${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }})
             **Database:** Connected to Neon preview branch
 
-            ${{ steps.load-test.outputs.results && steps.load-test.outputs.results != 'Load tests failed or results not available' && format('### 📊 Load Test Results\n\n{0}\n', steps.load-test.outputs.results) || '### ⏳ Load tests are running or failed...' }}
+            ${{ steps.load-test.outputs.load_test_results || '### ⏳ Load tests are running or failed...' }}
 
             ---
             *This preview environment will be automatically destroyed when the PR is closed.*
