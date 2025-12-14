@@ -7,4 +7,7 @@ Rails.application.routes.draw do
 
   # Prometheus metrics endpoint
   get '/metrics', to: 'metrics#index'
+
+  # Version endpoint
+  get '/version', to: 'version#index'
 end

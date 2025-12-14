@@ -63,8 +63,8 @@ jobs:
           # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+          # Deploy with image label from release-id job and BUILD_VERSION
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS --env BUILD_VERSION="${{ needs.release-id.outputs.image-tag }}"
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
@@ -123,6 +123,41 @@ jobs:
           # Run integration/request specs
           bundle exec rspec spec/requests/
 
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nodejs bc jq
+
+      - name: Wait for QA to be ready
+        run: |
+          echo "Waiting for QA deployment to be ready..."
+          sleep 15
+
+      - name: Run load tests against QA
+        id: load-test
+        env:
+          QA_URL: https://kitchen-test.fly.dev
+        run: |
+          # Run load tests with JSON output
+          k6 run --out json=load-test-results.json load-tests/k6-tests.js --env BASE_URL="$QA_URL" || true
+
+          # Compare with baseline (will create baseline if it doesn't exist)
+          if [ -f load-test-results.json ]; then
+            node load-tests/compare-baseline.js load-test-results.json
+          else
+            echo "⚠️ Load test results file not found. Skipping baseline comparison."
+            exit 0
+          fi
+
+          # Upload results as artifact
+          if [ -f load-test-results.json ]; then
+            echo "✅ Load test results saved"
+          fi
+        continue-on-error: false
+
   run-migrations:
     name: Run Migrations
     needs: [integration-tests]
@@ -178,8 +213,8 @@ jobs:
           # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+          # Deploy with image label from release-id job and BUILD_VERSION
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS --env BUILD_VERSION="${{ needs.release-id.outputs.image-tag }}"
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
@@ -220,8 +255,8 @@ jobs:
           # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+          # Deploy with image label from release-id job and BUILD_VERSION
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS --env BUILD_VERSION="${{ needs.release-id.outputs.image-tag }}"
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}

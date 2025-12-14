@@ -1,4 +1,4 @@
-name: Create/Delete Branch for Pull Request
+name: PR Deploy
 
 on:
   pull_request:
@@ -32,33 +32,36 @@ jobs:
 
   create_neon_branch:
     name: Create Neon Branch
-    outputs:
-      db_url: ${{ steps.create_neon_branch_encode.outputs.db_url }}
-      db_url_with_pooler: ${{ steps.create_neon_branch_encode.outputs.db_url_with_pooler }}
+    runs-on: ubuntu-latest
     needs: [ci, setup]
     if: |
       github.event_name == 'pull_request' && (
       github.event.action == 'synchronize'
       || github.event.action == 'opened'
       || github.event.action == 'reopened')
-    runs-on: ubuntu-latest
+    outputs:
+      db_host: ${{ steps.create-branch.outputs.db_host }}
+      db_host_pooled: ${{ steps.create-branch.outputs.db_host_pooled }}
+    environment: devspace
     steps:
       - name: Get branch expiration date as an env variable (2 weeks from now)
         id: get_expiration_date
         run: echo "EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
 
       - name: Create Neon Branch
-        id: create_neon_branch
+        id: create-branch
         uses: neondatabase/create-branch-action@v6
         with:
           project_id: ${{ vars.NEON_PROJECT_ID }}
           branch_name: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
           api_key: ${{ secrets.NEON_API_KEY }}
           expires_at: ${{ env.EXPIRES_AT }}
+          database: ${{ vars.DATABASE_NAME }}
+          role: ${{ secrets.DATABASE_USERNAME }}
 
   deploy-qa:
     name: Deploy PR
-    needs: [create_neon_branch]
+    needs: [create_neon_branch, setup]
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'pull_request' && (
@@ -66,10 +69,10 @@ jobs:
       || github.event.action == 'opened'
       || github.event.action == 'reopened')
     environment:
-      name: qa
-      url: https://${{ vars.FLY_APP_NAME }}-${{ needs.setup.outputs.branch }}.fly.dev
+      name: devspace
+      url: https://${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}.fly.dev
     outputs:
-      deployment-url: ${{ steps.deploy.outputs.url }}
+      deployment-url: ${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}
 
     steps:
       - name: Checkout code
@@ -78,25 +81,134 @@ jobs:
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Launch new app
-        id: deploy
+      - name: Check if app exists
+        id: check-app
         shell: bash
         run: |
-          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
-          SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
+          # Check if app exists by listing apps and filtering
+          if flyctl apps list --json | jq -e ".[] | select(.Name == \"$FLY_APP_NAME\")" &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "App $FLY_APP_NAME already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "App $FLY_APP_NAME does not exist"
+          fi
+        env:
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --secret DATABASE_URL="$DATABASE_URL" --secret RAILS_MASTER_KEY="$(cat config/master.key)"
+      - name: Bundle secrets
+        id: bundle-secrets
+        if: steps.check-app.outputs.exists == 'true'
+        shell: bash
+        run: |
+          sudo apt-get install -y jq
+          # Filter out FLY_API_TOKEN as it's already set as env var
+          echo "$APP_SECRETS" | jq -r 'to_entries | map(select(.key != "FLY_API_TOKEN")) | .[] | "\(.key)=\(.value)"' > .env
+          echo "DATABASE_HOST=$DATABASE_HOST" >> .env
+          echo "RAILS_MASTER_KEY=$RAILS_MASTER_KEY" >> .env
+
+          flyctl secrets import -a "$FLY_APP_NAME" --stage < .env
+        env:
+          APP_SECRETS: ${{ toJSON(secrets) }}
+          DATABASE_HOST: ${{ needs.create_neon_branch.outputs.db_host_pooled }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy to existing app
+        id: deploy-existing
+        if: steps.check-app.outputs.exists == 'true'
+        shell: bash
+        run: |
+          # Build --env arguments from vars
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
+
+          # Deploy to existing app
+          flyctl deploy --local-only -a "$FLY_APP_NAME" $VARS_ARGS --env BUILD_VERSION="${{ github.sha }}"
+
+          DEPLOYMENT_URL="https://$FLY_APP_NAME.fly.dev"
+          echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+        env:
+          ALL_VARS: ${{ toJSON(vars) }}
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Launch new app
+        id: deploy-new
+        if: steps.check-app.outputs.exists == 'false'
+        shell: bash
+        run: |
+          # Build --env arguments from vars (properly quoted)
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value | @sh)"' | tr '\n' ' ')
+
+          # Build --secret arguments from secrets
+          # Filter out FLY_API_TOKEN as it may contain newlines and is already set as env var
+          # Use xargs to properly handle arguments with spaces/newlines
+          SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries | map(select(.key != "FLY_API_TOKEN")) | .[] | "--secret \(.key)=\(.value | @sh)"' | xargs)
+
+          # Create new app and launch
+          flyctl launch --name "$FLY_APP_NAME" --ha=false --local-only --no-redis --no-db --no-github-workflow --now --region "sin" --yes $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST="$DATABASE_HOST" --secret RAILS_MASTER_KEY="$RAILS_MASTER_KEY"
 
           DEPLOYMENT_URL="https://$FLY_APP_NAME.fly.dev"
           echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           APP_SECRETS: ${{ toJSON(secrets) }}
-          DATABASE_URL: ${{ needs.create_neon_branch.outputs.db_url_with_pooler }}
-          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}-${{ needs.setup.outputs.branch }}
+          DATABASE_HOST: ${{ needs.create_neon_branch.outputs.db_host_pooled }}
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
 
-      - name: Comment PR with deployment URL
+      - name: Set up k6
+        if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
+        uses: grafana/setup-k6-action@v1
+
+      - name: Install dependencies
+        if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+
+      - name: Wait for deployment to be ready
+        if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
+        run: |
+          echo "Waiting for deployment to be ready..."
+          sleep 10
+
+      - name: Run load tests
+        id: load-test
+        if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
+        run: |
+          DEPLOYMENT_URL="${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}"
+
+          # Run load tests with JSON output
+          k6 run --out json=load-test-results.json load-tests/k6-tests.js --env BASE_URL="$DEPLOYMENT_URL" || true
+
+          # Parse results for PR comment
+          if [ -f load-test-results.json ]; then
+            P95=$(jq -r '.metrics.http_req_duration.p95 // 0' load-test-results.json 2>/dev/null || echo "0")
+            AVG=$(jq -r '.metrics.http_req_duration.avg // 0' load-test-results.json 2>/dev/null || echo "0")
+            TOTAL=$(jq -r '.metrics.http_reqs.total // 0' load-test-results.json 2>/dev/null || echo "0")
+            ERROR_RATE=$(jq -r '.metrics.errors.rate // 0' load-test-results.json 2>/dev/null || echo "0")
+
+            # Format error rate as percentage
+            ERROR_PCT=$(echo "$ERROR_RATE * 100" | bc -l 2>/dev/null || echo "0")
+            ERROR_PCT_FORMATTED=$(printf "%.2f" "$ERROR_PCT")
+
+            echo "results<<EOF" >> $GITHUB_OUTPUT
+            echo "| Metric | Value |" >> $GITHUB_OUTPUT
+            echo "|--------|-------|" >> $GITHUB_OUTPUT
+            echo "| P95 Latency | ${P95}ms |" >> $GITHUB_OUTPUT
+            echo "| Avg Latency | ${AVG}ms |" >> $GITHUB_OUTPUT
+            echo "| Total Requests | ${TOTAL} |" >> $GITHUB_OUTPUT
+            echo "| Error Rate | ${ERROR_PCT_FORMATTED}% |" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+        env:
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
+
+      - name: Comment PR with deployment URL and load test results
         uses: mshick/add-pr-comment@v2
         with:
           message: |
@@ -104,8 +216,10 @@ jobs:
 
             Your preview environment has been deployed!
 
-            **Environment URL:** [${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }})
+            **Environment URL:** [${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}](${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }})
             **Database:** Connected to Neon preview branch
+
+            ${{ steps.load-test.outputs.results && format('### 📊 Load Test Results\n\n{0}\n', steps.load-test.outputs.results) || '### ⏳ Load tests are running...' }}
 
             ---
             *This preview environment will be automatically destroyed when the PR is closed.*
@@ -132,7 +246,7 @@ jobs:
       - name: Destroy
         shell: bash
         run: |
-          fly apps destroy $FLY_APP_NAME -y
+          flyctl apps destroy $FLY_APP_NAME -y
         env:
-          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}-${{ needs.setup.outputs.branch }}
+          FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
