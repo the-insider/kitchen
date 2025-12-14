@@ -87,8 +87,6 @@ jobs:
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
           SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
 
-          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --secret DATABASE_URL="$DATABASE_URL" --secret RAILS_MASTER_KEY="$(cat config/master.key)"
-
           # Launch preview app
           flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST=$DATABASE_HOST --secret RAILS_MASTER_KEY=$(cat config/master.key)
           DEPLOYMENT_URL="https://$FLY_APP_NAME.fly.dev"
@@ -136,7 +134,7 @@ jobs:
       - name: Destroy
         shell: bash
         run: |
-          fly apps destroy $FLY_APP_NAME -y
+          flyctl apps destroy $FLY_APP_NAME -y
         env:
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}-${{ needs.setup.outputs.branch }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
