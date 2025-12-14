@@ -140,7 +140,7 @@ jobs:
         shell: bash
         run: |
           # Build --env arguments from vars (properly quoted)
-          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value | @sh)"' | tr '\n' ' ')
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
           # Build --secret arguments from secrets
           # Filter out FLY_API_TOKEN as it may contain newlines and is already set as env var
