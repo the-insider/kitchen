@@ -182,20 +182,29 @@ jobs:
         run: |
           DEPLOYMENT_URL="${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}"
 
+          echo "Running load tests against: $DEPLOYMENT_URL"
+
           # Run load tests with JSON output
           k6 run --out json=load-test-results.json load-tests/k6-tests.js --env BASE_URL="$DEPLOYMENT_URL" || true
 
           # Parse results for PR comment
           if [ -f load-test-results.json ]; then
-            P95_RAW=$(jq -r '.metrics.http_req_duration.p95 // 0' load-test-results.json 2>/dev/null || echo "0")
-            AVG_RAW=$(jq -r '.metrics.http_req_duration.avg // 0' load-test-results.json 2>/dev/null || echo "0")
-            TOTAL=$(jq -r '.metrics.http_reqs.total // 0' load-test-results.json 2>/dev/null || echo "0")
-            ERROR_RATE=$(jq -r '.metrics.errors.rate // 0' load-test-results.json 2>/dev/null || echo "0")
+            # Try to extract metrics from the JSON output
+            P95_RAW=$(jq -r '.metrics.http_req_duration.p95 // .metrics.http_req_duration.values."p(95)" // 0' load-test-results.json 2>/dev/null || echo "0")
+            AVG_RAW=$(jq -r '.metrics.http_req_duration.avg // .metrics.http_req_duration.values.avg // 0' load-test-results.json 2>/dev/null || echo "0")
+            TOTAL=$(jq -r '.metrics.http_reqs.total // .metrics.http_reqs.values.count // 0' load-test-results.json 2>/dev/null || echo "0")
+            ERROR_RATE=$(jq -r '.metrics.errors.rate // .metrics.errors.values.rate // 0' load-test-results.json 2>/dev/null || echo "0")
 
             # Format numbers to 2 decimal places
             P95=$(printf "%.2f" "$P95_RAW" 2>/dev/null || echo "0.00")
             AVG=$(printf "%.2f" "$AVG_RAW" 2>/dev/null || echo "0.00")
             ERROR_PCT=$(printf "%.2f" "$(echo "$ERROR_RATE * 100" | bc -l 2>/dev/null || echo "0")" 2>/dev/null || echo "0.00")
+
+            echo "Load test results:"
+            echo "  P95: ${P95}ms"
+            echo "  Avg: ${AVG}ms"
+            echo "  Total: ${TOTAL}"
+            echo "  Error Rate: ${ERROR_PCT}%"
 
             echo "results<<EOF" >> $GITHUB_OUTPUT
             echo "| Metric | Value |" >> $GITHUB_OUTPUT
@@ -205,13 +214,18 @@ jobs:
             echo "| Total Requests | ${TOTAL} |" >> $GITHUB_OUTPUT
             echo "| Error Rate | ${ERROR_PCT}% |" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Load test results file not found"
+            echo "results=Load tests failed or results not available" >> $GITHUB_OUTPUT
           fi
         env:
           FLY_APP_NAME: ${{ github.event.repository.name }}-${{ needs.setup.outputs.branch }}
 
       - name: Comment PR with deployment URL and load test results
+        if: always() && (steps.deploy-existing.outcome == 'success' || steps.deploy-new.outcome == 'success')
         uses: mshick/add-pr-comment@v2
         with:
+          message-id: preview-deployment-${{ github.event.pull_request.number }}
           message: |
             ## 🚀 Preview Deployment
 
@@ -220,7 +234,7 @@ jobs:
             **Environment URL:** [${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }}](${{ steps.deploy-existing.outputs.url || steps.deploy-new.outputs.url }})
             **Database:** Connected to Neon preview branch
 
-            ${{ steps.load-test.outputs.results && format('### 📊 Load Test Results\n\n{0}\n', steps.load-test.outputs.results) || '### ⏳ Load tests are running...' }}
+            ${{ steps.load-test.outputs.results && steps.load-test.outputs.results != 'Load tests failed or results not available' && format('### 📊 Load Test Results\n\n{0}\n', steps.load-test.outputs.results) || '### ⏳ Load tests are running or failed...' }}
 
             ---
             *This preview environment will be automatically destroyed when the PR is closed.*
