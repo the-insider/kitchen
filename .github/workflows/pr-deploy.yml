@@ -187,14 +187,15 @@ jobs:
 
           # Parse results for PR comment
           if [ -f load-test-results.json ]; then
-            P95=$(jq -r '.metrics.http_req_duration.p95 // 0' load-test-results.json 2>/dev/null || echo "0")
-            AVG=$(jq -r '.metrics.http_req_duration.avg // 0' load-test-results.json 2>/dev/null || echo "0")
+            P95_RAW=$(jq -r '.metrics.http_req_duration.p95 // 0' load-test-results.json 2>/dev/null || echo "0")
+            AVG_RAW=$(jq -r '.metrics.http_req_duration.avg // 0' load-test-results.json 2>/dev/null || echo "0")
             TOTAL=$(jq -r '.metrics.http_reqs.total // 0' load-test-results.json 2>/dev/null || echo "0")
             ERROR_RATE=$(jq -r '.metrics.errors.rate // 0' load-test-results.json 2>/dev/null || echo "0")
 
-            # Format error rate as percentage
-            ERROR_PCT=$(echo "$ERROR_RATE * 100" | bc -l 2>/dev/null || echo "0")
-            ERROR_PCT_FORMATTED=$(printf "%.2f" "$ERROR_PCT")
+            # Format numbers to 2 decimal places
+            P95=$(printf "%.2f" "$P95_RAW" 2>/dev/null || echo "0.00")
+            AVG=$(printf "%.2f" "$AVG_RAW" 2>/dev/null || echo "0.00")
+            ERROR_PCT=$(printf "%.2f" "$(echo "$ERROR_RATE * 100" | bc -l 2>/dev/null || echo "0")" 2>/dev/null || echo "0.00")
 
             echo "results<<EOF" >> $GITHUB_OUTPUT
             echo "| Metric | Value |" >> $GITHUB_OUTPUT
@@ -202,7 +203,7 @@ jobs:
             echo "| P95 Latency | ${P95}ms |" >> $GITHUB_OUTPUT
             echo "| Avg Latency | ${AVG}ms |" >> $GITHUB_OUTPUT
             echo "| Total Requests | ${TOTAL} |" >> $GITHUB_OUTPUT
-            echo "| Error Rate | ${ERROR_PCT_FORMATTED}% |" >> $GITHUB_OUTPUT
+            echo "| Error Rate | ${ERROR_PCT}% |" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
         env:
