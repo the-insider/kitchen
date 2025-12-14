@@ -8,6 +8,10 @@ on:
       - synchronize
       - closed
 
+permissions:
+  contents: read
+  pull-requests: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
@@ -56,8 +60,16 @@ jobs:
     name: Deploy PR
     needs: [create_neon_branch]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref != 'refs/heads/master' || github.ref != 'refs/heads/main' || !startsWith(github.ref, 'refs/tags/v'))
-    environment: qa
+    if: |
+      github.event_name == 'pull_request' && (
+      github.event.action == 'synchronize'
+      || github.event.action == 'opened'
+      || github.event.action == 'reopened')
+    environment:
+      name: qa
+      url: https://${{ vars.FLY_APP_NAME }}-${{ needs.setup.outputs.branch }}.fly.dev
+    outputs:
+      deployment-url: ${{ steps.deploy.outputs.url }}
 
     steps:
       - name: Checkout code
@@ -66,57 +78,37 @@ jobs:
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Deploy
+      - name: Launch new app
+        id: deploy
         shell: bash
         run: |
-          # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
-          SECRET_ARGS=$(echo "APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
+          SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --secret DATABASE_HOST=$DATABASE_HOST --secret RAILS_MASTER_KEY=$(cat config/master.key)
+          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --secret DATABASE_URL="$DATABASE_URL" --secret RAILS_MASTER_KEY="$(cat config/master.key)"
+
+          DEPLOYMENT_URL="https://$FLY_APP_NAME.fly.dev"
+          echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           APP_SECRETS: ${{ toJSON(secrets) }}
-          DATABASE_HOST: ${{ needs.create_neon_branch.outputs.db_host_pooled }}
+          DATABASE_URL: ${{ needs.create_neon_branch.outputs.db_url_with_pooler }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}-${{ needs.setup.outputs.branch }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-# The step above creates a new Neon branch.
-# You may want to do something with the new branch, such as run migrations, run tests
-# on it, or send the connection details to a hosting platform environment.
-# The branch DATABASE_URL is available to you via:
-# "${{ steps.create_neon_branch.outputs.db_url_with_pooler }}".
-# It's important you don't log the DATABASE_URL as output as it contains a username and
-# password for your database.
-# For example, you can uncomment the lines below to run a database migration command:
-#      - name: Run Migrations
-#        run: npm run db:migrate
-#        env:
-#          # to use pooled connection
-#          DATABASE_URL: "${{ steps.create_neon_branch.outputs.db_url_with_pooler }}"
-#          # OR to use unpooled connection
-#          # DATABASE_URL: "${{ steps.create_neon_branch.outputs.db_url }}"
+      - name: Comment PR with deployment URL
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            ## 🚀 Preview Deployment
 
-# Following the step above, which runs database migrations, you may want to check
-# for schema changes in your database. We recommend using the following action to
-# post a comment to your pull request with the schema diff. For this action to work,
-# you also need to give permissions to the workflow job to be able to post comments
-# and read your repository contents. Add the following permissions to the workflow job:
-#
-# permissions:
-#   contents: read
-#   pull-requests: write
-#
-# You can also check out https://github.com/neondatabase/schema-diff-action for more
-# information on how to use the schema diff action.
-# You can uncomment the lines below to enable the schema diff action.
-#      - name: Post Schema Diff Comment to PR
-#        uses: neondatabase/schema-diff-action@v1
-#        with:
-#          project_id: ${{ vars.NEON_PROJECT_ID }}
-#          compare_branch: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
-#          api_key: ${{ secrets.NEON_API_KEY }}
+            Your preview environment has been deployed!
+
+            **Environment URL:** [${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }})
+            **Database:** Connected to Neon preview branch
+
+            ---
+            *This preview environment will be automatically destroyed when the PR is closed.*
 
   destory_devspace:
     name: Destory Preview Environment
