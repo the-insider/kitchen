@@ -55,6 +55,8 @@ jobs:
           branch_name: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
           api_key: ${{ secrets.NEON_API_KEY }}
           expires_at: ${{ env.EXPIRES_AT }}
+          database: ${{ secrets.DATABASE_NAME }}
+          role: ${{ secrets.DATABASE_USERNAME }}
 
   deploy-qa:
     name: Deploy PR
