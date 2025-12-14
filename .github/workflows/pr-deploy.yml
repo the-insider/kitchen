@@ -85,11 +85,16 @@ jobs:
         id: deploy
         shell: bash
         run: |
-          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
-          SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
+          # Build --env arguments from vars (properly quoted)
+          VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value | @sh)"' | tr '\n' ' ')
+
+          # Build --secret arguments from secrets
+          # Filter out FLY_API_TOKEN as it may contain newlines and is already set as env var
+          # Use xargs to properly handle arguments with spaces/newlines
+          SECRET_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries | map(select(.key != "FLY_API_TOKEN")) | .[] | "--secret \(.key)=\(.value | @sh)"' | xargs)
 
           # Launch preview app
-          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST=$DATABASE_HOST --secret RAILS_MASTER_KEY=$RAILS_MASTER_KEY
+          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST="$DATABASE_HOST" --secret RAILS_MASTER_KEY="$RAILS_MASTER_KEY"
           DEPLOYMENT_URL="https://$FLY_APP_NAME.fly.dev"
           echo "url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
         env:
