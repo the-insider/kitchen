@@ -35,7 +35,9 @@ jobs:
     needs: [release-id]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    environment: qa
+    environment:
+      name: qa
+      url: https://kitchen-test.fly.dev
 
     steps:
       - name: Checkout code
@@ -147,8 +149,8 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
-      name: production-canary
-      url: https://canary.example.com  # Update with your canary URL
+      name: production
+      url: https://kitchen-prod.fly.dev
 
     steps:
       - name: Checkout code
@@ -190,7 +192,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: production
-      url: https://example.com  # Update with your production URL
+      url: https://kitchen-prod.fly.dev  # Update with your production URL
 
     steps:
       - name: Checkout code
