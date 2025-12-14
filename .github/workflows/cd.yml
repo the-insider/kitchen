@@ -145,7 +145,7 @@ jobs:
 
   deploy-canary:
     name: Deploy Canary
-    needs: [release-id]
+    needs: [run-migrations, release-id]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
@@ -187,7 +187,7 @@ jobs:
 
   deploy-production:
     name: Deploy to Production
-    needs: [release-id]
+    needs: [deploy-canary, release-id]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
@@ -226,4 +226,3 @@ jobs:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
