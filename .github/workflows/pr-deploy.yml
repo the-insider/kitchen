@@ -73,8 +73,8 @@ jobs:
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
           SECRET_ARGS=$(echo "APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --secret DATABASE_HOST=$DATABASE_HOST --secret RAILS_MASTER_KEY=$(cat config/master.key)
+          # Launch new app with BUILD_VERSION from commit SHA
+          flyctl launch --name "$FLY_APP_NAME" --no-redis --no-db $VARS_ARGS $SECRET_ARGS --env BUILD_VERSION="${{ github.sha }}" --secret DATABASE_HOST=$DATABASE_HOST --secret RAILS_MASTER_KEY=$(cat config/master.key)
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           APP_SECRETS: ${{ toJSON(secrets) }}

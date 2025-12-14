@@ -63,8 +63,8 @@ jobs:
           # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+          # Deploy with image label from release-id job and BUILD_VERSION
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS --env BUILD_VERSION="${{ needs.release-id.outputs.image-tag }}"
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
@@ -178,8 +178,8 @@ jobs:
           # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+          # Deploy with image label from release-id job and BUILD_VERSION
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS --env BUILD_VERSION="${{ needs.release-id.outputs.image-tag }}"
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
@@ -220,8 +220,8 @@ jobs:
           # Build --env arguments from vars
           VARS_ARGS=$(echo "$ALL_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
 
-          # Deploy with image label from release-id job
-          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS
+          # Deploy with image label from release-id job and BUILD_VERSION
+          flyctl deploy --local-only -a "$FLY_APP_NAME" --image-label "${{ needs.release-id.outputs.image-tag }}" $VARS_ARGS --env BUILD_VERSION="${{ needs.release-id.outputs.image-tag }}"
         env:
           ALL_VARS: ${{ toJSON(vars) }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
