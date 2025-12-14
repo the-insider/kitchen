@@ -27,22 +27,18 @@ jobs:
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Bundle secrets
+      - name: Deploy
         run: |
-          sudo apt-get install -y jq
-          echo "$APP_SECRETS" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > .env
-          echo "Importing secrets to $FLY_APP_NAME"
-          flyctl secrets import -a "$FLY_APP_NAME" < .env
-          flyctl secrets import -a "$FLY_APP_NAME" < $GITHUB_ENV
+          # Build --env arguments from vars and build secrets
+          SECRETS_ARGS=$(echo "$APP_SECRETS" | jq -r 'to_entries[] | "--secret \(.key)=\(.value)"' | tr '\n' ' ')
+          VARS_ARGS=$(echo "$APP_VARS" | jq -r 'to_entries[] | "--env \(.key)=\(.value)"' | tr '\n' ' ')
+          
+          # Execute deploy with environment variables
+          flyctl deploy --local-only -a "$FLY_APP_NAME" $SECRETS_ARGS $VARS_ARGS
         shell: bash
         env:
+          APP_VARS: ${{ toJSON(vars) }}
           APP_SECRETS: ${{ toJSON(secrets) }}
-          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: Deploy
-        run: flyctl deploy --local-only -a $FLY_APP_NAME
-        env:
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
