@@ -61,7 +61,7 @@ jobs:
 
   deploy-qa:
     name: Deploy PR
-    needs: [create_neon_branch]
+    needs: [create_neon_branch, setup]
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'pull_request' && (
